@@ -99,7 +99,7 @@
                     </div>
                     <div>
                         <label class="block text-left text-light-gray mb-2">Slippage Tolerance (%)</label>
-                        <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                        <input id="slippage" type="number" value="5" step="0.1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
                     </div>
                     <div>
                         <label class="block text-left text-light-gray mb-2">基准价格 (GT)</label>
@@ -110,7 +110,7 @@
                         <input id="priceRange" type="number" value="10" step="1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
                     </div>
                     <div>
-                        <label class="block text-left text-light-gray mb-2">网格数量</label>
+                        <label class="block text-left text-left text-light-gray mb-2">网格数量</label>
                         <input id="gridCount" type="number" value="10" step="1" min="2" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
                     </div>
                     <div>
@@ -137,9 +137,11 @@
                         <button id="startButton" class="px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">启动机器人</button>
                         <button id="stopButton" class="px-6 py-3 bg-dark/80 border border-secondary text-secondary rounded-full font-medium hover:bg-secondary/10 transition-all">停止机器人</button>
                         <button id="checkBalanceButton" class="px-6 py-3 bg-secondary text-dark rounded-full font-medium hover:bg-secondary/80 transition-all">检查余额</button>
+                        <button id="approveButton" class="px-6 py-3 bg-secondary text-dark rounded-full font-medium hover:bg-secondary/80 transition-all hidden">Approve Token</button>
                     </div>
                     <p id="status" class="text-light-gray text-sm">状态: 就绪</p>
                     <p id="balanceStatus" class="text-light-gray text-sm">GT 余额: 0 | 代币余额: 0</p>
+                    <p id="gridStatus" class="text-light-gray text-sm">网格状态: 未设置</p>
                     <div id="log" class="h-24 overflow-y-auto bg-dark/80 p-3 rounded-lg border border-primary/20 text-sm text-light-gray"></div>
                 </div>
             </div>
@@ -174,8 +176,8 @@
                     { "internalType": "address", "name": "to", "type": "address" },
                     { "internalType": "uint256", "name": "deadline", "type": "uint256" }
                 ],
-                "name": "swapExactETHForTokens",
-                "outputs": [{ "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }],
+                "name": "swapExactETHForTokensSupportingFeeOnTransferTokens",
+                "outputs": [],
                 "stateMutability": "payable",
                 "type": "function"
             },
@@ -197,8 +199,8 @@
                     { "internalType": "address", "name": "to", "type": "address" },
                     { "internalType": "uint256", "name": "deadline", "type": "uint256" }
                 ],
-                "name": "swapExactTokensForETH",
-                "outputs": [{ "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }],
+                "name": "swapExactTokensForETHSupportingFeeOnTransferTokens",
+                "outputs": [],
                 "stateMutability": "nonpayable",
                 "type": "function"
             }
@@ -207,9 +209,18 @@
         const ERC20_ABI = [
             {
                 "constant": true,
+                "inputs": [],
+                "name": "decimals",
+                "outputs": [{ "name": "", "type": "uint8" }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "constant": true,
                 "inputs": [{ "name": "_owner", "type": "address" }],
                 "name": "balanceOf",
                 "outputs": [{ "name": "balance", "type": "uint256" }],
+                "stateMutability": "view",
                 "type": "function"
             },
             {
@@ -220,6 +231,7 @@
                 ],
                 "name": "approve",
                 "outputs": [{ "name": "success", "type": "bool" }],
+                "stateMutability": "nonpayable",
                 "type": "function"
             },
             {
@@ -230,6 +242,7 @@
                 ],
                 "name": "allowance",
                 "outputs": [{ "name": "remaining", "type": "uint256" }],
+                "stateMutability": "view",
                 "type": "function"
             }
         ];
@@ -245,11 +258,11 @@
             invalidPrivateKey: "错误: 无效的私钥",
             invalidGasPrice: "错误: 无效的 Gas Price",
             invalidGridParams: "错误: 无效的网格参数（基准价格、价格区间、网格数量需有效）",
-            processingWallet: "处理钱包 ",
-            gtBalance: "GT 余额: ",
-            tokenBalance: "代币余额: ",
-            approvingToken: "正在为钱包授权代币 ",
-            alreadyApproved: "代币已授权给钱包 ",
+            insufficientBalance: "错误: 余额不足",
+            insufficientAllowance: "错误: 代币未授权，请先授权",
+            approvingToken: "正在授权代币 ",
+            approveSuccess: "代币授权成功",
+            approveFail: "代币授权失败: ",
             buyingToken: "正在购买代币 ",
             sellingToken: "正在卖出代币 ",
             tradeSuccess: "交易成功！交易哈希: ",
@@ -268,6 +281,7 @@
         let wallet = null;
         let selectedToken = "0xf6d9cf57e20ba0d33372e8998a9424aa53411e04";
         let tokenSymbol = "GDOG";
+        let tokenDecimals = 1; // 默认 GDOG 为 1 位小数
 
         function log(message) {
             const logDiv = document.getElementById("log");
@@ -324,27 +338,69 @@
             throw new Error(`交易 ${txHash} 未在 ${maxAttempts} 次尝试后确认`);
         }
 
-        async function checkAndApproveToken(wallet, tokenAddress) {
-            const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, tokenAddress);
+        async function checkTokenDecimals() {
+            const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
+            try {
+                tokenDecimals = await tokenContract.methods.decimals().call();
+                log(`代币 ${tokenSymbol} 小数位: ${tokenDecimals}`);
+            } catch (error) {
+                log(`获取代币小数位失败，假设为 1: ${error.message}`);
+                tokenDecimals = selectedToken.toLowerCase() === TOKEN_ADDRESSES["GDOG"].toLowerCase() ? 1 : 18;
+            }
+        }
+
+        async function checkAndApproveToken(wallet) {
+            const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
             const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
             try {
                 const allowance = await tokenContract.methods.allowance(wallet.address, GATE_ROUTER_ADDRESS).call();
                 if (web3Instance.utils.toBN(allowance).gte(web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).div(web3Instance.utils.toBN(2)))) {
-                    log(getMessage("alreadyApproved") + wallet.address);
+                    log(getMessage("approveSuccess") + wallet.address);
+                    document.getElementById("approveButton").classList.add("hidden");
                     return true;
                 }
+                document.getElementById("approveButton").classList.remove("hidden");
+                document.getElementById("startButton").disabled = true;
+                log(getMessage("insufficientAllowance"));
+                return false;
+            } catch (error) {
+                log(getMessage("approveFail") + error.message);
+                document.getElementById("approveButton").classList.remove("hidden");
+                document.getElementById("startButton").disabled = true;
+                return false;
+            }
+        }
+
+        async function approveToken() {
+            const approveButton = document.getElementById("approveButton");
+            approveButton.disabled = true;
+            approveButton.innerHTML = getMessage("buttonProcessing") + ' <i class="fa fa-spinner fa-spin ml-2"></i>';
+            const status = document.getElementById("status");
+            try {
+                web3Instance.eth.accounts.wallet.add(wallet.privateKey);
+                const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
+                const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
                 log(getMessage("approvingToken") + wallet.address + "...");
+                status.textContent += getMessage("approvingToken") + wallet.address + "\n";
+                const estimatedGas = await tokenContract.methods.approve(GATE_ROUTER_ADDRESS, web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).sub(web3Instance.utils.toBN(1))).estimateGas({ from: wallet.address });
                 const tx = await tokenContract.methods.approve(GATE_ROUTER_ADDRESS, web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).sub(web3Instance.utils.toBN(1))).send({
                     from: wallet.address,
-                    gas: 100000,
+                    gas: Math.min(estimatedGas * 2, 1000000),
                     gasPrice
                 });
                 await waitForTransaction(tx.transactionHash);
-                log(getMessage("tradeSuccess") + "授权成功: " + wallet.address);
+                log(getMessage("approveSuccess") + ": " + tx.transactionHash);
+                status.textContent += getMessage("approveSuccess") + "\n";
+                document.getElementById("approveButton").classList.add("hidden");
+                document.getElementById("startButton").disabled = false;
                 return true;
             } catch (error) {
-                log(getMessage("errorProcessing") + wallet.address + getMessage("errorMessage") + "代币授权失败: " + error.message);
+                log(getMessage("approveFail") + error.message);
+                status.textContent += getMessage("approveFail") + error.message + "\n";
                 return false;
+            } finally {
+                approveButton.disabled = false;
+                approveButton.innerHTML = "Approve Token";
             }
         }
 
@@ -373,19 +429,21 @@
             try {
                 wallet = web3Instance.eth.accounts.privateKeyToAccount(privateKey);
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
+                await checkTokenDecimals();
                 const gtBalance = await web3Instance.eth.getBalance(wallet.address);
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
+                const gtBalanceFormatted = Number(web3Instance.utils.fromWei(gtBalance, "ether")).toFixed(4);
+                const tokenBalanceFormatted = Number(web3Instance.utils.fromWei(tokenBalance, tokenDecimals === 1 ? "ether" : "ether")).toFixed(tokenDecimals === 1 ? 1 : 4);
                 status.textContent += getMessage("processingWallet") + wallet.address + "\n";
-                status.textContent += getMessage("gtBalance") + web3Instance.utils.fromWei(gtBalance, "ether") + " GT\n";
-                status.textContent += getMessage("tokenBalance") + web3Instance.utils.fromWei(tokenBalance, "ether") + ` ${tokenSymbol}\n`;
-                document.getElementById("balanceStatus").textContent = `GT 余额: ${web3Instance.utils.fromWei(gtBalance, "ether")} | 代币余额: ${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`;
-                log(`${getMessage("processingWallet")}${wallet.address}: ${getMessage("gtBalance")}${web3Instance.utils.fromWei(gtBalance, "ether")} GT, ${getMessage("tokenBalance")}${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`);
+                status.textContent += getMessage("gtBalance") + gtBalanceFormatted + " GT\n";
+                status.textContent += getMessage("tokenBalance") + tokenBalanceFormatted + ` ${tokenSymbol}\n`;
+                document.getElementById("balanceStatus").textContent = `GT 余额: ${gtBalanceFormatted} | 代币余额: ${tokenBalanceFormatted} ${tokenSymbol}`;
+                log(`${getMessage("processingWallet")}${wallet.address}: ${getMessage("gtBalance")}${gtBalanceFormatted} GT, ${getMessage("tokenBalance")}${tokenBalanceFormatted} ${tokenSymbol}`);
+                await checkAndApproveToken(wallet);
             } catch (error) {
                 status.textContent += getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message + "\n";
                 log(getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message);
             }
-            status.textContent += getMessage("allProcessed") + "\n";
-            log(getMessage("allProcessed"));
             checkButton.disabled = false;
             checkButton.innerHTML = "检查余额";
         }
@@ -396,6 +454,7 @@
             const gridCount = parseInt(document.getElementById("gridCount").value);
             if (isNaN(basePrice) || basePrice <= 0 || isNaN(priceRange) || priceRange < 0 || isNaN(gridCount) || gridCount < 2) {
                 log(getMessage("invalidGridParams"));
+                document.getElementById("gridStatus").textContent = getMessage("invalidGridParams");
                 return null;
             }
             const minPrice = basePrice * (1 - priceRange);
@@ -409,6 +468,7 @@
                     type: price < basePrice ? "buy" : price > basePrice ? "sell" : "neutral"
                 });
             }
+            document.getElementById("gridStatus").textContent = `网格状态: ${grids.map(g => `${g.type === "buy" ? "买" : g.type === "sell" ? "卖" : "中立"}@${g.price} GT`).join(", ")}`;
             return grids;
         }
 
@@ -417,15 +477,14 @@
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
-                const gasLimit = 400000;
                 const GTAmountWei = web3Instance.utils.toWei(GTAmount.toString(), "ether");
                 const path = [WGT_ADDRESS, selectedToken];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const balance = await web3Instance.eth.getBalance(wallet.address);
                 const balanceGT = web3Instance.utils.fromWei(balance, "ether");
                 if (parseFloat(balanceGT) < parseFloat(GTAmount) + 0.01) {
-                    log(`GateSwap: 余额不足 ${wallet.address}: ${balanceGT} GT`);
-                    document.getElementById("status").textContent += `GateSwap: 余额不足: ${balanceGT} GT\n`;
+                    log(getMessage("insufficientBalance") + `: ${balanceGT} GT`);
+                    document.getElementById("status").textContent += getMessage("insufficientBalance") + `: ${balanceGT} GT\n`;
                     return false;
                 }
                 let attempts = 0;
@@ -434,21 +493,25 @@
                 while (attempts < maxAttempts) {
                     try {
                         const amounts = await routerContract.methods.getAmountsOut(GTAmountWei, path).call();
-                        const tokenAmount = web3Instance.utils.fromWei(amounts[1], "ether");
-                        const tokenAmountWei = web3Instance.utils.toWei(tokenAmount, "ether");
+                        const tokenAmount = web3Instance.utils.fromWei(amounts[1], tokenDecimals === 1 ? "ether" : "ether");
+                        const tokenAmountWei = web3Instance.utils.toWei(tokenAmount, tokenDecimals === 1 ? "ether" : "ether");
                         const slippagePercent = parseFloat(document.getElementById("slippage").value) / 100;
                         const tokenAmountMin = web3Instance.utils.toBN(tokenAmountWei).mul(web3Instance.utils.toBN(Math.floor((1 - slippagePercent) * 1000))).div(web3Instance.utils.toBN(1000));
-                        const tx = await routerContract.methods.swapExactETHForTokens(tokenAmountMin, path, wallet.address, deadline).send({
+                        const estimatedGas = await routerContract.methods.swapExactETHForTokensSupportingFeeOnTransferTokens(tokenAmountMin, path, wallet.address, deadline).estimateGas({
+                            from: wallet.address,
+                            value: GTAmountWei
+                        });
+                        const tx = await routerContract.methods.swapExactETHForTokensSupportingFeeOnTransferTokens(tokenAmountMin, path, wallet.address, deadline).send({
                             from: wallet.address,
                             value: GTAmountWei,
-                            gas: gasLimit,
+                            gas: Math.min(estimatedGas * 2, 3000000),
                             gasPrice,
                             nonce
                         });
                         await waitForTransaction(tx.transactionHash);
                         const txLink = `https://www.gatescan.org/gatelayer/tx/${tx.transactionHash}`;
                         log(getMessage("tradeSuccess") + tx.transactionHash);
-                        document.getElementById("status").textContent += `GateSwap 购买: ${GTAmount} GT -> ~${parseFloat(tokenAmount).toFixed(6)} ${tokenSymbol}, TX: ${txLink}\n`;
+                        document.getElementById("status").textContent += `GateSwap 购买: ${GTAmount} GT -> ~${parseFloat(tokenAmount).toFixed(tokenDecimals === 1 ? 1 : 4)} ${tokenSymbol}, TX: ${txLink}\n`;
                         return true;
                     } catch (error) {
                         attempts++;
@@ -474,24 +537,23 @@
         async function sellGateSwap(wallet, tokenAmount) {
             try {
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
-                const approved = await checkAndApproveToken(wallet, selectedToken);
+                const approved = await checkAndApproveToken(wallet);
                 if (!approved) {
-                    log(`GateSwap: 代币授权失败: ${wallet.address}`);
-                    document.getElementById("status").textContent += `GateSwap: 代币授权失败\n`;
+                    log(getMessage("insufficientAllowance"));
+                    document.getElementById("status").textContent += getMessage("insufficientAllowance") + "\n";
                     return false;
                 }
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
-                const gasLimit = 400000;
-                const tokenAmountWei = web3Instance.utils.toWei(tokenAmount.toString(), "ether");
+                const tokenAmountWei = web3Instance.utils.toWei(tokenAmount.toString(), tokenDecimals === 1 ? "ether" : "ether");
                 const path = [selectedToken, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
-                const tokenBalanceGT = web3Instance.utils.fromWei(tokenBalance, "ether");
-                if (parseFloat(tokenBalanceGT) < parseFloat(tokenAmount)) {
-                    log(`GateSwap: 代币余额不足 ${wallet.address}: ${tokenBalanceGT} ${tokenSymbol}`);
-                    document.getElementById("status").textContent += `GateSwap: 代币余额不足: ${tokenBalanceGT} ${tokenSymbol}\n`;
+                const tokenBalanceFormatted = web3Instance.utils.fromWei(tokenBalance, tokenDecimals === 1 ? "ether" : "ether");
+                if (parseFloat(tokenBalanceFormatted) < parseFloat(tokenAmount)) {
+                    log(getMessage("insufficientBalance") + `: ${tokenBalanceFormatted} ${tokenSymbol}`);
+                    document.getElementById("status").textContent += getMessage("insufficientBalance") + `: ${tokenBalanceFormatted} ${tokenSymbol}\n`;
                     return false;
                 }
                 let attempts = 0;
@@ -501,9 +563,12 @@
                     try {
                         const amounts = await routerContract.methods.getAmountsOut(tokenAmountWei, path).call();
                         const GTAmountMin = web3Instance.utils.toBN(amounts[1]).mul(web3Instance.utils.toBN(Math.floor((1 - parseFloat(document.getElementById("slippage").value) / 100) * 1000))).div(web3Instance.utils.toBN(1000));
-                        const tx = await routerContract.methods.swapExactTokensForETH(tokenAmountWei, GTAmountMin, path, wallet.address, deadline).send({
+                        const estimatedGas = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(tokenAmountWei, GTAmountMin, path, wallet.address, deadline).estimateGas({
+                            from: wallet.address
+                        });
+                        const tx = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(tokenAmountWei, GTAmountMin, path, wallet.address, deadline).send({
                             from: wallet.address,
-                            gas: gasLimit,
+                            gas: Math.min(estimatedGas * 2, 3000000),
                             gasPrice,
                             nonce
                         });
@@ -572,6 +637,7 @@
             try {
                 wallet = web3Instance ? web3Instance.eth.accounts.privateKeyToAccount(privateKey) : null;
                 log(`有效私钥: 地址 ${wallet.address}`);
+                status.textContent += `有效私钥: 地址 ${wallet.address}\n`;
             } catch (error) {
                 log(getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message);
                 status.textContent += getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message + "\n";
@@ -587,6 +653,13 @@
                     return;
                 }
             }
+            await checkTokenDecimals();
+            const approved = await checkAndApproveToken(wallet);
+            if (!approved) {
+                startButton.disabled = false;
+                startButton.innerHTML = "启动机器人";
+                return;
+            }
             botRunning = true;
             log(`加载钱包: ${wallet.address}`);
             log(`网格设置: ${grids.map(g => `${g.type === "buy" ? "买" : g.type === "sell" ? "卖" : "中立"}@${g.price} GT`).join(", ")}`);
@@ -597,14 +670,14 @@
                 const GTAmount = parseFloat(document.getElementById("gridAmount").value);
                 const path = [WGT_ADDRESS, selectedToken];
                 const amounts = await routerContract.methods.getAmountsOut(web3Instance.utils.toWei("1", "ether"), path).call();
-                const currentPrice = web3Instance.utils.fromWei(amounts[1], "ether");
+                const currentPrice = web3Instance.utils.fromWei(amounts[1], tokenDecimals === 1 ? "ether" : "ether");
                 log(`当前价格: ${currentPrice} GT`);
                 for (const grid of grids) {
                     if (grid.type === "buy" && parseFloat(currentPrice) <= parseFloat(grid.price)) {
                         log(getMessage("buyingToken") + wallet.address + ` (${GTAmount} GT @ ${grid.price} GT)`);
                         await purchaseGateSwap(wallet, GTAmount);
                     } else if (grid.type === "sell" && parseFloat(currentPrice) >= parseFloat(grid.price)) {
-                        const tokenAmount = (GTAmount / parseFloat(currentPrice)).toFixed(6);
+                        const tokenAmount = (GTAmount / parseFloat(currentPrice)).toFixed(tokenDecimals === 1 ? 1 : 4);
                         log(getMessage("sellingToken") + wallet.address + ` (${tokenAmount} ${tokenSymbol} @ ${grid.price} GT)`);
                         await sellGateSwap(wallet, tokenAmount);
                     }
@@ -628,19 +701,26 @@
             botRunning = false;
             log("机器人已停止");
             document.getElementById("status").textContent = "状态: 机器人已停止\n";
+            document.getElementById("gridStatus").textContent = "网格状态: 未设置";
             stopButton.disabled = false;
             stopButton.innerHTML = "停止机器人";
         }
 
         document.addEventListener("DOMContentLoaded", () => {
             log("页面加载完成，准备启动机器人");
-            document.getElementById("tokenSelect").addEventListener("change", () => {
+            document.getElementById("tokenSelect").addEventListener("change", async () => {
                 selectedToken = document.getElementById("tokenSelect").value;
                 tokenSymbol = Object.keys(TOKEN_ADDRESSES).find(key => TOKEN_ADDRESSES[key].toLowerCase() === selectedToken.toLowerCase()) || "未知";
+                if (web3Instance && wallet) {
+                    await checkTokenDecimals();
+                    await checkAndApproveToken(wallet);
+                    await checkBalances();
+                }
             });
             document.getElementById("startButton").addEventListener("click", startBot);
             document.getElementById("stopButton").addEventListener("click", stopBot);
             document.getElementById("checkBalanceButton").addEventListener("click", checkBalances);
+            document.getElementById("approveButton").addEventListener("click", approveToken);
             const menuToggle = document.getElementById("menuToggle");
             const mobileMenu = document.getElementById("mobileMenu");
             menuToggle.addEventListener("click", () => {
