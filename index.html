@@ -2,149 +2,156 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GDOG: The first dog on GateLayer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="shortcut icon" href="https://www.woofswap.finance/image/tokens/gdog.png" type="image/x-icon">
-    <style>
-        :root {
-            --primary-color: #ff9100;
-            --secondary-color: #ff6f61;
-            --gradient-bg: linear-gradient(180deg, #1e1e2f 0%, #2a2a3d 100%);
-            --card-bg: #2c2f48;
-            --input-bg: #373b5c;
-            --text-color: #ffffff;
-            --border-radius: 8px;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--gradient-bg);
-            color: var(--text-color);
-            padding: 10px;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .container {
-            width: 100%;
-            max-width: 90vw;
-            min-width: 300px;
-            background: var(--card-bg);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            border-radius: var(--border-radius);
-            padding: 12px;
-        }
-        .header {
-            background: linear-gradient(90deg, var(--secondary-color) 0%, var(--primary-color) 100%);
-            padding: 10px;
-            border-radius: var(--border-radius);
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-        .settings { margin: 8px 0; }
-        .settings label {
-            display: block;
-            margin-bottom: 4px;
-            font-weight: bold;
-            color: var(--text-color);
-            font-size: 0.9em;
-        }
-        .settings input, .settings textarea, .settings select {
-            width: 100%;
-            padding: 6px;
-            background: var(--input-bg);
-            border: none;
-            border-radius: 6px;
-            color: var(--text-color);
-            font-size: 0.9em;
-            margin-bottom: 8px;
-        }
-        .settings textarea { height: 80px; resize: vertical; }
-        button {
-            padding: 8px 16px;
-            background: linear-gradient(90deg, var(--secondary-color) 0%, var(--primary-color) 100%);
-            color: var(--text-color);
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 0.9em;
-            margin: 4px;
-            transition: opacity 0.2s;
-        }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        button:hover:not(:disabled) { opacity: 0.9; }
-        .balance-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85em;
-            margin-bottom: 8px;
-            color: var(--primary-color);
-        }
-        #status {
-            margin-top: 8px;
-            font-size: 0.85em;
-            color: var(--primary-color);
-            white-space: pre-wrap;
-        }
-        #log {
-            height: 100px;
-            overflow-y: scroll;
-            border: 1px solid #ccc;
-            padding: 6px;
-            background: var(--input-bg);
-            margin-top: 8px;
-            border-radius: 6px;
-            font-size: 0.85em;
-            color: var(--text-color);
-        }
-        @media (max-width: 600px) {
-            .container { padding: 8px; }
-            .header { font-size: 1em; padding: 8px; }
-            .settings label, .settings input, .settings select, .settings textarea, button, #status, #log {
-                font-size: 0.8em;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GateLayer Grid Trading</title>
+    <link rel="icon" type="image/jpeg" href="images/gcat_logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0068FF',
+                        secondary: '#18E5A0',
+                        accent: '#FFD700',
+                        dark: '#070808',
+                        'light-gray': '#E5E7EB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        display: ['Changa One', 'system-ui', 'sans-serif']
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite'
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-8px)' }
+                        }
+                    }
+                }
             }
-            button { padding: 6px 12px; }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow-glow {
+                text-shadow: 0 0 10px rgba(0, 104, 255, 0.5);
+            }
+            .glow-border {
+                box-shadow: 0 0 12px rgba(24, 229, 160, 0.3);
+            }
+            .bg-grid {
+                background-image: url('data:image/svg+xml,%3Csvg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"%3E%3Ccircle cx="1" cy="1" r="1" fill="%230068FF" fill-opacity="0.1"/%3E%3C/svg%3E');
+                background-size: 20px 20px;
+            }
         }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Changa+One&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="container">
-        <div class="header">GDOG: The first dog on GateLayer</div>
-        <div class="settings">
-            <label>RPC URL: <input type="text" id="rpcUrl" value="https://gatelayer-mainnet.gatenode.cc"></label>
-            <label>Chain ID: <input type="text" id="chainId" value="10088" readonly></label>
-            <label>Gas Price (Gwei): <input type="number" id="gasPrice" value="0.5" step="0.1" min="0"></label>
-            <label>Slippage (%): <input type="number" id="slippage" value="0.5" step="0.1" min="0"></label>
-            <label>基准价格 (GT): <input type="number" id="basePrice" value="0.001" step="0.0001" min="0"></label>
-            <label>价格区间 (%): <input type="number" id="priceRange" value="10" step="1" min="0"></label>
-            <label>网格数量: <input type="number" id="gridCount" value="10" step="1" min="2"></label>
-            <label>每网格金额 (GT): <input type="number" id="gridAmount" value="0.01" step="0.001" min="0"></label>
-            <label>Private Keys (one per line, start with 0x): <textarea id="privateKeys" placeholder="0xkey1 (66 chars)\n0xkey2 (66 chars)"></textarea>
-            <label>Token:
-                <select id="tokenSelect">
-                    <option value="0xf6d9cf57e20ba0d33372e8998a9424aa53411e04">GDOG</option>
-                    <option value="0x614025d5b75a1e762111d4b845633728774d888a">MIMA</option>
-                    <option value="0xd30d04405bbeb573ce4d8697fb4b3bcda6eb1777">GCAT (Blue)</option>
-                    <option value="0xfb7a49bd483de0f2ed479f82a3f7f7f53e9e4057">GM</option>
-                    <option value="0x01ec580a60dbf3c8f3e00805c5489037eff35675">GCAT (Black)</option>
-                    <option value="0x8e0474a49163f1764d56a9fd9342b87f1d1aec00">LUCKY</option>
-                    <option value="0x8b78ddf4c0908f3ddb23f27d8bd06b9daab8c7e2">TEST</option>
-                </select>
-            </label>
+<body class="bg-dark text-white font-sans overflow-x-hidden">
+    <header class="fixed w-full z-50 bg-dark/90 backdrop-blur-md transition-all duration-300" id="navbar">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3 cursor-pointer hover:text-primary transition-colors">
+                <div class="w-10 h-10 rounded-full overflow-hidden">
+                    <img src="images/gcat_logo.png" alt="Logo" class="w-full h-full object-cover">
+                </div>
+                <span class="font-display text-3xl text-primary text-shadow-glow">GateLayer Grid Trading</span>
+            </div>
+            <button id="menuToggle" class="md:hidden text-2xl text-primary">
+                <i class="fa fa-bars"></i>
+            </button>
         </div>
-        <button id="startButton">启动机器人</button>
-        <button id="stopButton">停止机器人</button>
-        <button id="checkBalanceButton">检查余额</button>
-        <div class="balance-row"><span>GT 余额</span><span id="gtBalance">余额: 0</span></div>
-        <div class="balance-row"><span>代币余额</span><span id="tokenBalance">余额: 0</span></div>
-        <div id="status">状态: 就绪</div>
-        <div id="log"></div>
-    </div>
+        <div id="mobileMenu" class="md:hidden bg-dark/95 absolute w-full top-full py-4 px-4 hidden">
+            <div class="flex flex-col space-y-4">
+                <a href="#grid" class="hover:text-primary transition-colors py-2 text-white">Grid Trading</a>
+            </div>
+        </div>
+    </header>
+
+    <section id="grid" class="min-h-screen pt-24 pb-16 bg-grid relative overflow-hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-gradient-to-b from-primary/10 to-dark pointer-events-none"></div>
+        <div class="absolute top-0 left-0 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-0 w-80 h-80 bg-secondary/10 rounded-full blur-3xl"></div>
+        <div class="container mx-auto px-4 text-center relative z-10">
+            <div class="w-48 h-48 mx-auto mb-8 animate-float">
+                <img src="images/gcat_logo.png" alt="Logo" class="w-full h-full object-cover rounded-full border-4 border-secondary/50 glow-border">
+            </div>
+            <h1 class="font-display text-5xl md:text-7xl mb-6 text-primary text-shadow-glow">Grid Trading on GateSwap</h1>
+            <p class="text-xl md:text-2xl text-light-gray max-w-3xl mx-auto mb-10">
+                Automate trading with a grid strategy for your favorite tokens on GateLayer.
+            </p>
+            <div class="bg-dark/50 p-6 rounded-lg border border-primary/30 max-w-md mx-auto mb-8">
+                <div class="flex flex-col space-y-4">
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">RPC URL</label>
+                        <input id="rpcUrl" type="text" value="https://gatelayer-mainnet.gatenode.cc" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">Chain ID</label>
+                        <input id="chainId" type="text" value="10088" readonly class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">Gas Price (Gwei)</label>
+                        <input id="gasPrice" type="number" value="0.5" step="0.1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">Slippage Tolerance (%)</label>
+                        <input id="slippage" type="number" value="0.5" step="0.1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">基准价格 (GT)</label>
+                        <input id="basePrice" type="number" value="0.001" step="0.0001" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">价格区间 (%)</label>
+                        <input id="priceRange" type="number" value="10" step="1" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">网格数量</label>
+                        <input id="gridCount" type="number" value="10" step="1" min="2" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">每网格金额 (GT)</label>
+                        <input id="gridAmount" type="number" value="0.01" step="0.001" min="0" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">Private Key (start with 0x)</label>
+                        <input id="privateKey" type="text" placeholder="0x..." class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                    </div>
+                    <div>
+                        <label class="block text-left text-light-gray mb-2">Token</label>
+                        <select id="tokenSelect" class="w-full px-4 py-2 bg-dark/80 border border-primary/20 rounded-lg text-white focus:outline-none focus:border-secondary">
+                            <option value="0xf6d9cf57e20ba0d33372e8998a9424aa53411e04">GDOG</option>
+                            <option value="0x614025d5b75a1e762111d4b845633728774d888a">MIMA</option>
+                            <option value="0xd30d04405bbeb573ce4d8697fb4b3bcda6eb1777">GCAT (Blue)</option>
+                            <option value="0xfb7a49bd483de0f2ed479f82a3f7f7f53e9e4057">GM</option>
+                            <option value="0x01ec580a60dbf3c8f3e00805c5489037eff35675">GCAT (Black)</option>
+                            <option value="0x8e0474a49163f1764d56a9fd9342b87f1d1aec00">LUCKY</option>
+                            <option value="0x8b78ddf4c0908f3ddb23f27d8bd06b9daab8c7e2">TEST</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-center gap-4">
+                        <button id="startButton" class="px-6 py-3 bg-primary text-white rounded-full font-medium hover:bg-primary/80 transition-all">启动机器人</button>
+                        <button id="stopButton" class="px-6 py-3 bg-dark/80 border border-secondary text-secondary rounded-full font-medium hover:bg-secondary/10 transition-all">停止机器人</button>
+                        <button id="checkBalanceButton" class="px-6 py-3 bg-secondary text-dark rounded-full font-medium hover:bg-secondary/80 transition-all">检查余额</button>
+                    </div>
+                    <p id="status" class="text-light-gray text-sm">状态: 就绪</p>
+                    <p id="balanceStatus" class="text-light-gray text-sm">GT 余额: 0 | 代币余额: 0</p>
+                    <div id="log" class="h-24 overflow-y-auto bg-dark/80 p-3 rounded-lg border border-primary/20 text-sm text-light-gray"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-dark/95 py-12 border-t border-primary/20">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-light-gray text-sm">© 2025 GateLayer Grid Trading. All rights reserved.</p>
+        </div>
+    </footer>
+
     <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
     <script>
         const GATE_ROUTER_ADDRESS = "0x12814690f59a9ce8ba87dc8cf0692442baa9c097";
@@ -234,8 +241,8 @@
             expectedChain: " (Gate Layer 应为 10088)",
             chainMismatch: "错误: 未连接到 Gate Layer (链 ID 应为 10088)",
             rpcError: "错误: 无法连接到 RPC: ",
-            noPrivateKeys: "错误: 未提供私钥",
-            invalidTokenAddress: "错误: 无效的代币地址",
+            noPrivateKey: "错误: 未提供私钥",
+            invalidPrivateKey: "错误: 无效的私钥",
             invalidGasPrice: "错误: 无效的 Gas Price",
             invalidGridParams: "错误: 无效的网格参数（基准价格、价格区间、网格数量需有效）",
             processingWallet: "处理钱包 ",
@@ -243,12 +250,11 @@
             tokenBalance: "代币余额: ",
             approvingToken: "正在为钱包授权代币 ",
             alreadyApproved: "代币已授权给钱包 ",
-            buyingToken: "正在为钱包购买代币 ",
-            sellingToken: "正在为钱包卖出代币 ",
+            buyingToken: "正在购买代币 ",
+            sellingToken: "正在卖出代币 ",
             tradeSuccess: "交易成功！交易哈希: ",
             errorProcessing: "处理钱包时出错 ",
             errorMessage: ": ",
-            allProcessed: "所有钱包处理完成",
             buttonProcessing: "处理中..."
         };
 
@@ -259,8 +265,7 @@
         let web3Instance = null;
         let botRunning = false;
         let autoBuyInterval = null;
-        let wallets = [];
-        let currentWalletIndex = 0;
+        let wallet = null;
         let selectedToken = "0xf6d9cf57e20ba0d33372e8998a9424aa53411e04";
         let tokenSymbol = "GDOG";
 
@@ -283,7 +288,7 @@
             try {
                 const provider = new Web3.providers.HttpProvider(rpcUrl, { timeout: 10000 });
                 const web3 = new Web3(provider);
-                status.textContent += getMessage("testingRPC") + "\n";
+                status.textContent = getMessage("testingRPC") + "\n";
                 log(getMessage("testingRPC"));
                 const networkChainId = await web3.eth.getChainId();
                 status.textContent += getMessage("connectedToChain") + networkChainId + getMessage("expectedChain") + "\n";
@@ -344,49 +349,45 @@
         }
 
         async function checkBalances() {
-            const startButton = document.getElementById("checkBalanceButton");
-            startButton.disabled = true;
-            startButton.textContent = getMessage("buttonProcessing");
+            const checkButton = document.getElementById("checkBalanceButton");
+            checkButton.disabled = true;
+            checkButton.innerHTML = getMessage("buttonProcessing") + ' <i class="fa fa-spinner fa-spin ml-2"></i>';
             const status = document.getElementById("status");
             status.textContent = getMessage("statusReady") + "\n";
             if (!web3Instance) {
                 web3Instance = await initializeWeb3();
                 if (!web3Instance) {
-                    startButton.disabled = false;
-                    startButton.textContent = "检查余额";
+                    checkButton.disabled = false;
+                    checkButton.innerHTML = "检查余额";
                     return;
                 }
             }
-            const privateKeys = document.getElementById("privateKeys").value.trim().split("\n").filter(key => key.length > 0);
-            if (privateKeys.length < 1) {
-                status.textContent += getMessage("noPrivateKeys") + "\n";
-                log(getMessage("noPrivateKeys"));
-                startButton.disabled = false;
-                startButton.textContent = "检查余额";
+            const privateKey = document.getElementById("privateKey").value.trim();
+            if (!privateKey) {
+                status.textContent += getMessage("noPrivateKey") + "\n";
+                log(getMessage("noPrivateKey"));
+                checkButton.disabled = false;
+                checkButton.innerHTML = "检查余额";
                 return;
             }
-            const tokenSelect = document.getElementById("tokenSelect").value;
-            const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, tokenSelect);
-            for (const pk of privateKeys) {
-                try {
-                    const account = web3Instance.eth.accounts.privateKeyToAccount(pk.trim());
-                    const gtBalance = await web3Instance.eth.getBalance(account.address);
-                    const tokenBalance = await tokenContract.methods.balanceOf(account.address).call();
-                    status.textContent += getMessage("processingWallet") + account.address + "\n";
-                    status.textContent += getMessage("gtBalance") + web3Instance.utils.fromWei(gtBalance, "ether") + " GT\n";
-                    status.textContent += getMessage("tokenBalance") + web3Instance.utils.fromWei(tokenBalance, "ether") + ` ${tokenSymbol}\n`;
-                    document.getElementById("gtBalance").textContent = `余额: ${web3Instance.utils.fromWei(gtBalance, "ether")} GT`;
-                    document.getElementById("tokenBalance").textContent = `余额: ${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`;
-                    log(`${getMessage("processingWallet")}${account.address}: ${getMessage("gtBalance")}${web3Instance.utils.fromWei(gtBalance, "ether")} GT, ${getMessage("tokenBalance")}${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`);
-                } catch (error) {
-                    status.textContent += getMessage("errorProcessing") + pk.slice(0, 10) + "..." + getMessage("errorMessage") + error.message + "\n";
-                    log(getMessage("errorProcessing") + pk.slice(0, 10) + "..." + getMessage("errorMessage") + error.message);
-                }
+            try {
+                wallet = web3Instance.eth.accounts.privateKeyToAccount(privateKey);
+                const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
+                const gtBalance = await web3Instance.eth.getBalance(wallet.address);
+                const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
+                status.textContent += getMessage("processingWallet") + wallet.address + "\n";
+                status.textContent += getMessage("gtBalance") + web3Instance.utils.fromWei(gtBalance, "ether") + " GT\n";
+                status.textContent += getMessage("tokenBalance") + web3Instance.utils.fromWei(tokenBalance, "ether") + ` ${tokenSymbol}\n`;
+                document.getElementById("balanceStatus").textContent = `GT 余额: ${web3Instance.utils.fromWei(gtBalance, "ether")} | 代币余额: ${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`;
+                log(`${getMessage("processingWallet")}${wallet.address}: ${getMessage("gtBalance")}${web3Instance.utils.fromWei(gtBalance, "ether")} GT, ${getMessage("tokenBalance")}${web3Instance.utils.fromWei(tokenBalance, "ether")} ${tokenSymbol}`);
+            } catch (error) {
+                status.textContent += getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message + "\n";
+                log(getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message);
             }
             status.textContent += getMessage("allProcessed") + "\n";
             log(getMessage("allProcessed"));
-            startButton.disabled = false;
-            startButton.textContent = "检查余额";
+            checkButton.disabled = false;
+            checkButton.innerHTML = "检查余额";
         }
 
         function calculateGrid() {
@@ -414,12 +415,6 @@
         async function purchaseGateSwap(wallet, GTAmount) {
             try {
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
-                const approved = await checkAndApproveToken(wallet, selectedToken);
-                if (!approved) {
-                    log(`GateSwap: 代币授权失败: ${wallet.address}`);
-                    document.getElementById("status").textContent += `GateSwap: 代币授权失败\n`;
-                    return false;
-                }
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
                 const gasLimit = 400000;
@@ -476,7 +471,7 @@
             }
         }
 
-        async function sellGateSwap(wallet, GTAmount) {
+        async function sellGateSwap(wallet, tokenAmount) {
             try {
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
                 const approved = await checkAndApproveToken(wallet, selectedToken);
@@ -488,13 +483,13 @@
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
                 const gasLimit = 400000;
-                const tokenAmountWei = web3Instance.utils.toWei(GTAmount.toString(), "ether");
+                const tokenAmountWei = web3Instance.utils.toWei(tokenAmount.toString(), "ether");
                 const path = [selectedToken, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, selectedToken);
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
                 const tokenBalanceGT = web3Instance.utils.fromWei(tokenBalance, "ether");
-                if (parseFloat(tokenBalanceGT) < parseFloat(GTAmount)) {
+                if (parseFloat(tokenBalanceGT) < parseFloat(tokenAmount)) {
                     log(`GateSwap: 代币余额不足 ${wallet.address}: ${tokenBalanceGT} ${tokenSymbol}`);
                     document.getElementById("status").textContent += `GateSwap: 代币余额不足: ${tokenBalanceGT} ${tokenSymbol}\n`;
                     return false;
@@ -515,7 +510,7 @@
                         await waitForTransaction(tx.transactionHash);
                         const txLink = `https://www.gatescan.org/gatelayer/tx/${tx.transactionHash}`;
                         log(getMessage("tradeSuccess") + tx.transactionHash);
-                        document.getElementById("status").textContent += `GateSwap 卖出: ${GTAmount} ${tokenSymbol} -> GT, TX: ${txLink}\n`;
+                        document.getElementById("status").textContent += `GateSwap 卖出: ${tokenAmount} ${tokenSymbol} -> GT, TX: ${txLink}\n`;
                         return true;
                     } catch (error) {
                         attempts++;
@@ -541,75 +536,63 @@
         async function startBot() {
             const startButton = document.getElementById("startButton");
             startButton.disabled = true;
-            startButton.textContent = getMessage("buttonProcessing");
+            startButton.innerHTML = getMessage("buttonProcessing") + ' <i class="fa fa-spinner fa-spin ml-2"></i>';
             const status = document.getElementById("status");
             status.textContent = getMessage("statusReady") + "\n";
             if (botRunning) {
                 log("错误: 机器人已在运行");
                 status.textContent += "错误: 机器人已在运行\n";
                 startButton.disabled = false;
-                startButton.textContent = "启动机器人";
+                startButton.innerHTML = "启动机器人";
                 return;
             }
-            const privateKeys = document.getElementById("privateKeys").value.trim().split("\n").filter(key => key.length > 0);
-            const tokenSelect = document.getElementById("tokenSelect").value;
-            selectedToken = tokenSelect;
-            tokenSymbol = Object.keys(TOKEN_ADDRESSES).find(key => TOKEN_ADDRESSES[key].toLowerCase() === tokenSelect.toLowerCase()) || "未知";
+            const privateKey = document.getElementById("privateKey").value.trim();
             const gasPrice = parseFloat(document.getElementById("gasPrice").value);
             const grids = calculateGrid();
-            if (privateKeys.length < 1) {
-                log(getMessage("noPrivateKeys"));
-                status.textContent += getMessage("noPrivateKeys") + "\n";
+            if (!privateKey) {
+                log(getMessage("noPrivateKey"));
+                status.textContent += getMessage("noPrivateKey") + "\n";
                 startButton.disabled = false;
-                startButton.textContent = "启动机器人";
+                startButton.innerHTML = "启动机器人";
                 return;
             }
             if (isNaN(gasPrice) || gasPrice <= 0) {
                 log(getMessage("invalidGasPrice"));
                 status.textContent += getMessage("invalidGasPrice") + "\n";
                 startButton.disabled = false;
-                startButton.textContent = "启动机器人";
+                startButton.innerHTML = "启动机器人";
                 return;
             }
             if (!grids) {
                 status.textContent += getMessage("invalidGridParams") + "\n";
                 startButton.disabled = false;
-                startButton.textContent = "启动机器人";
+                startButton.innerHTML = "启动机器人";
                 return;
             }
-            wallets = [];
-            for (const pk of privateKeys) {
-                try {
-                    const account = web3Instance ? web3Instance.eth.accounts.privateKeyToAccount(pk.trim()) : { address: Web3.utils.privateToAddress(pk) };
-                    log(`有效私钥: 地址 ${account.address}`);
-                    wallets.push({ address: account.address, privateKey: pk.trim() });
-                } catch (error) {
-                    log(`无效私钥: ${pk.slice(0, 10)}...: ${error.message}`);
-                }
-            }
-            if (wallets.length === 0) {
-                log("错误: 未提供有效私钥");
-                status.textContent += "错误: 未提供有效私钥\n";
+            try {
+                wallet = web3Instance ? web3Instance.eth.accounts.privateKeyToAccount(privateKey) : null;
+                log(`有效私钥: 地址 ${wallet.address}`);
+            } catch (error) {
+                log(getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message);
+                status.textContent += getMessage("invalidPrivateKey") + getMessage("errorMessage") + error.message + "\n";
                 startButton.disabled = false;
-                startButton.textContent = "启动机器人";
+                startButton.innerHTML = "启动机器人";
                 return;
             }
             if (!web3Instance) {
                 web3Instance = await initializeWeb3();
                 if (!web3Instance) {
                     startButton.disabled = false;
-                    startButton.textContent = "启动机器人";
+                    startButton.innerHTML = "启动机器人";
                     return;
                 }
             }
             botRunning = true;
-            currentWalletIndex = 0;
-            log(`加载 ${wallets.length} 个有效钱包`);
+            log(`加载钱包: ${wallet.address}`);
             log(`网格设置: ${grids.map(g => `${g.type === "buy" ? "买" : g.type === "sell" ? "卖" : "中立"}@${g.price} GT`).join(", ")}`);
-            status.textContent += `加载 ${wallets.length} 个有效钱包\n`;
+            status.textContent += `加载钱包: ${wallet.address}\n`;
             autoBuyInterval = setInterval(async () => {
                 if (!botRunning || !web3Instance) return;
-                const wallet = wallets[currentWalletIndex];
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const GTAmount = parseFloat(document.getElementById("gridAmount").value);
                 const path = [WGT_ADDRESS, selectedToken];
@@ -621,23 +604,23 @@
                         log(getMessage("buyingToken") + wallet.address + ` (${GTAmount} GT @ ${grid.price} GT)`);
                         await purchaseGateSwap(wallet, GTAmount);
                     } else if (grid.type === "sell" && parseFloat(currentPrice) >= parseFloat(grid.price)) {
-                        log(getMessage("sellingToken") + wallet.address + ` (${GTAmount} ${tokenSymbol} @ ${grid.price} GT)`);
-                        await sellGateSwap(wallet, GTAmount);
+                        const tokenAmount = (GTAmount / parseFloat(currentPrice)).toFixed(6);
+                        log(getMessage("sellingToken") + wallet.address + ` (${tokenAmount} ${tokenSymbol} @ ${grid.price} GT)`);
+                        await sellGateSwap(wallet, tokenAmount);
                     }
                 }
                 await checkBalances();
-                currentWalletIndex = (currentWalletIndex + 1) % wallets.length;
             }, 10000);
             log(`网格交易启动: 每 10 秒检查 ${tokenSymbol} 价格`);
             status.textContent += `网格交易 ${tokenSymbol} 启动\n`;
             startButton.disabled = false;
-            startButton.textContent = "启动机器人";
+            startButton.innerHTML = "启动机器人";
         }
 
         function stopBot() {
             const stopButton = document.getElementById("stopButton");
             stopButton.disabled = true;
-            stopButton.textContent = getMessage("buttonProcessing");
+            stopButton.innerHTML = getMessage("buttonProcessing") + ' <i class="fa fa-spinner fa-spin ml-2"></i>';
             if (autoBuyInterval) {
                 clearInterval(autoBuyInterval);
                 autoBuyInterval = null;
@@ -646,7 +629,7 @@
             log("机器人已停止");
             document.getElementById("status").textContent = "状态: 机器人已停止\n";
             stopButton.disabled = false;
-            stopButton.textContent = "停止机器人";
+            stopButton.innerHTML = "停止机器人";
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -658,6 +641,28 @@
             document.getElementById("startButton").addEventListener("click", startBot);
             document.getElementById("stopButton").addEventListener("click", stopBot);
             document.getElementById("checkBalanceButton").addEventListener("click", checkBalances);
+            const menuToggle = document.getElementById("menuToggle");
+            const mobileMenu = document.getElementById("mobileMenu");
+            menuToggle.addEventListener("click", () => {
+                mobileMenu.classList.toggle("hidden");
+                menuToggle.innerHTML = mobileMenu.classList.contains("hidden") ? '<i class="fa fa-bars"></i>' : '<i class="fa fa-times"></i>';
+            });
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    mobileMenu.classList.add("hidden");
+                    menuToggle.innerHTML = '<i class="fa fa-bars"></i>';
+                    document.querySelector(this.getAttribute("href")).scrollIntoView({ behavior: "smooth" });
+                });
+            });
+            const navbar = document.getElementById("navbar");
+            window.addEventListener("scroll", () => {
+                if (window.scrollY > 50) {
+                    navbar.classList.add("bg-dark/95", "shadow-lg");
+                } else {
+                    navbar.classList.remove("bg-dark/95", "shadow-lg");
+                }
+            });
         });
     </script>
 </body>
