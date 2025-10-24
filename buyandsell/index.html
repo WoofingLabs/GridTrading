@@ -173,17 +173,6 @@
             },
             {
                 "constant": true,
-                "inputs": [
-                    { "name": "_owner", "type": "address" },
-                    { "name": "_spender", "type": "address" }
-                ],
-                "name": "allowance",
-                "outputs": [{ "name": "remaining", "type": "uint256" }],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "constant": true,
                 "inputs": [],
                 "name": "decimals",
                 "outputs": [{ "name": "", "type": "uint8" }],
@@ -222,7 +211,7 @@
             const messages = dogMessages[type];
             return messages[Math.floor(Math.random() * messages.length)];
         }
-        let web3, account, routerContract, tokenContract, tokenDecimals, tokenSymbol = 'Token';
+        let web3, account, routerContract, tokenContract, tokenDecimals = 18, tokenSymbol = 'Token';
         let isBuyMode = true;
         async function initializeWeb3() {
             if (window.ethereum) {
@@ -270,9 +259,11 @@
             const tokenAddress = document.getElementById('tokenAddress').value.trim();
             if (!tokenAddress || !web3.utils.isAddress(tokenAddress)) {
                 tokenSymbol = 'Token';
+                tokenDecimals = 18;
                 updateTokenUI();
                 document.getElementById('progressStatus').innerText = getRandomMessage('invalidAddress');
                 document.getElementById('swapButton').disabled = true;
+                tokenContract = null;
                 return false;
             }
             routerContract = new web3.eth.Contract(routerAbi, GATE_ROUTER);
@@ -284,16 +275,18 @@
                 return true;
             } catch (error) {
                 tokenSymbol = 'Token';
+                tokenDecimals = 18;
                 updateTokenUI();
                 document.getElementById('progressStatus').innerText = getRandomMessage('invalidContract');
                 document.getElementById('swapButton').disabled = true;
+                tokenContract = null;
                 return false;
             }
         }
         function updateTokenUI() {
             document.getElementById('buyModeButton').innerText = `Buy ${tokenSymbol}`;
             document.getElementById('sellModeButton').innerText = `Sell ${tokenSymbol}`;
-            document.getElementById('amountLabel').innerText = isBuyMode ? 'Total GT Amount' : `Total}.\$|${tokenSymbol} Amount`;
+            document.getElementById('amountLabel').innerText = isBuyMode ? 'Total GT Amount' : `Total ${tokenSymbol} Amount`;
             document.getElementById('amount').placeholder = isBuyMode ? 'Enter total GT amount' : `Enter total ${tokenSymbol} amount`;
             document.getElementById('swapButton').innerText = isBuyMode ? `Buy ${tokenSymbol}` : `Sell ${tokenSymbol}`;
             document.getElementById('balanceStatus').innerText = `GT Balance: 0 | ${tokenSymbol} Balance: 0`;
@@ -308,40 +301,13 @@
                 const gtBalance = await web3.eth.getBalance(account);
                 const tokenBalance = await tokenContract.methods.balanceOf(account).call();
                 const gtBalanceFormatted = Number(web3.utils.fromWei(gtBalance, 'ether')).toFixed(4);
-                const tokenBalanceFormatted = Number(tokenBalance / Math.pow(10, tokenDecimals)).toFixed(4);
+                const tokenBalanceFormatted = Number(web3.utils.fromWei(tokenBalance, 'ether')).toFixed(4);
                 document.getElementById('balanceStatus').innerText = `GT Balance: ${gtBalanceFormatted} | ${tokenSymbol} Balance: ${tokenBalanceFormatted}`;
-                await checkAllowance();
+                document.getElementById('swapButton').disabled = !isBuyMode && (!tokenBalance || tokenBalance == '0');
             } catch (error) {
                 document.getElementById('balanceStatus').innerText = `GT Balance: 0 | ${tokenSymbol} Balance: 0`;
-                document.getElementById('progressStatus').innerText = `Error: Balance check failed`;
+                document.getElementById('progressStatus').innerText = `Error: Balance check failed - ${error.message}`;
                 document.getElementById('swapButton').disabled = true;
-            }
-        }
-        async function checkAllowance() {
-            const tokenAddress = document.getElementById('tokenAddress').value.trim();
-            if (!web3 || !account || !tokenAddress || !web3.utils.isAddress(tokenAddress) || !tokenContract) {
-                document.getElementById('swapButton').disabled = true;
-                return false;
-            }
-            try {
-                const amount = document.getElementById('amount').value.trim();
-                if (!amount || isNaN(amount) || amount <= 0) {
-                    document.getElementById('swapButton').disabled = true;
-                    return false;
-                }
-                if (isBuyMode) {
-                    document.getElementById('swapButton').disabled = false;
-                    return true;
-                }
-                const amountWei = web3.utils.toBN(Math.round(amount * Math.pow(10, tokenDecimals)));
-                const allowance = await tokenContract.methods.allowance(account, GATE_ROUTER).call();
-                const isApproved = web3.utils.toBN(allowance).gte(amountWei);
-                document.getElementById('swapButton').disabled = !isApproved && !isBuyMode;
-                return isApproved;
-            } catch (error) {
-                document.getElementById('progressStatus').innerText = `Allowance check failed: ${error.message}`;
-                document.getElementById('swapButton').disabled = true;
-                return false;
             }
         }
         async function approveToken() {
@@ -358,7 +324,7 @@
             try {
                 document.getElementById('swapButton').innerHTML = 'Approving... <i class="fa fa-spinner fa-spin ml-2"></i>';
                 document.getElementById('progressStatus').innerText = getRandomMessage('approveStart');
-                const amountWei = web3.utils.toBN(Math.round(amount * Math.pow(10, tokenDecimals)));
+                const amountWei = web3.utils.toWei(amount, 'ether');
                 const gtBalance = await web3.eth.getBalance(account);
                 const gasPrice = await web3.eth.getGasPrice();
                 const estimatedGas = await tokenContract.methods.approve(GATE_ROUTER, amountWei).estimateGas({ from: account });
@@ -424,14 +390,11 @@
             document.getElementById('progressStatus').innerText = getRandomMessage(isBuyMode ? 'buyStart' : 'sellStart');
             try {
                 if (!isBuyMode) {
-                    const isApproved = await checkAllowance();
-                    if (!isApproved) {
-                        const approved = await approveToken();
-                        if (!approved) {
-                            swapButton.disabled = false;
-                            swapButton.innerHTML = `Sell ${tokenSymbol}`;
-                            return;
-                        }
+                    const approved = await approveToken();
+                    if (!approved) {
+                        swapButton.disabled = false;
+                        swapButton.innerHTML = `Sell ${tokenSymbol}`;
+                        return;
                     }
                 }
                 const gasPrice = await web3.eth.getGasPrice();
@@ -472,10 +435,10 @@
                     status.innerText = 'Buy successful!';
                     document.getElementById('progressStatus').innerText = getRandomMessage('buySuccess') + ` ${tx.transactionHash}`;
                 } else {
-                    const tokenAmountWei = web3.utils.toBN(Math.round(amount * Math.pow(10, tokenDecimals)));
+                    const tokenAmountWei = web3.utils.toWei(amount, 'ether');
                     const amountOutMin = '0';
                     const tokenBalance = await tokenContract.methods.balanceOf(account).call();
-                    if (web3.utils.toBN(tokenBalance).lt(tokenAmountWei)) {
+                    if (web3.utils.toBN(tokenBalance).lt(web3.utils.toBN(tokenAmountWei))) {
                         status.innerText = `Insufficient ${tokenSymbol} balance`;
                         document.getElementById('progressStatus').innerText = getRandomMessage('insufficientBalance');
                         return;
@@ -550,8 +513,8 @@
         }
         document.getElementById('connectWalletButton').addEventListener('click', initializeWeb3);
         document.getElementById('swapButton').addEventListener('click', swapToken);
-        document.getElementById('amount').addEventListener('input', checkAllowance);
-        document.getElementById('slippage').addEventListener('input', checkAllowance);
+        document.getElementById('amount').addEventListener('input', checkBalances);
+        document.getElementById('slippage').addEventListener('input', checkBalances);
         document.getElementById('tokenAddress').addEventListener('input', async () => {
             const validContract = await initializeContracts();
             if (validContract) await checkBalances();
@@ -565,7 +528,7 @@
             document.getElementById('amountLabel').innerText = 'Total GT Amount';
             document.getElementById('amount').placeholder = 'Enter total GT amount';
             document.getElementById('swapButton').innerText = `Buy ${tokenSymbol}`;
-            checkAllowance();
+            checkBalances();
         });
         document.getElementById('sellModeButton').addEventListener('click', () => {
             isBuyMode = false;
@@ -576,7 +539,7 @@
             document.getElementById('amountLabel').innerText = `Total ${tokenSymbol} Amount`;
             document.getElementById('amount').placeholder = `Enter total ${tokenSymbol} amount`;
             document.getElementById('swapButton').innerText = `Sell ${tokenSymbol}`;
-            checkAllowance();
+            checkBalances();
         });
         document.addEventListener('DOMContentLoaded', () => {
             updateTokenUI();
