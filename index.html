@@ -374,7 +374,7 @@
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPriceInput = parseFloat(document.getElementById("gasPrice").value);
                 const gasPrice = isNaN(gasPriceInput) || gasPriceInput <= 0 ? await web3Instance.eth.getGasPrice() : web3Instance.utils.toWei(gasPriceInput.toString(), "gwei");
-                const gasLimit = 10000000;
+                const gasLimit = 20000000;
                 const GMAmountWei = web3Instance.utils.toWei(GMAmount.toString(), "ether");
                 const path = [GM_ADDRESS, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
