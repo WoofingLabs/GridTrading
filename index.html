@@ -117,7 +117,7 @@
             <label>RPC URL: <input type="text" id="rpcUrl" value="https://gatelayer-mainnet.gatenode.cc"></label>
             <label>Chain ID: <input type="text" id="chainId" value="10088" readonly></label>
             <label>Gas Price (Gwei): <input type="number" id="gasPrice" value="0.5" step="0.1" min="0"></label>
-            <label>Slippage (%): <input type="number" id="slippage" value="0.5" step="0.1" min="0"></label>
+            <label>Slippage (%): <input type="number" id="slippage" value="5" step="0.1" min="0"></label>
             <label>Min Sell (GM): <input type="number" id="minAmount" value="100" step="1" min="0"></label>
             <label>Max Sell (GM): <input type="number" id="maxAmount" value="1000" step="1" min="0"></label>
             <label>Private Keys (one per line, start with 0x): <textarea id="privateKeys" placeholder="0xkey1 (66 chars)\n0xkey2 (66 chars)"></textarea>
@@ -145,8 +145,8 @@
                     { "internalType": "address", "name": "to", "type": "address" },
                     { "internalType": "uint256", "name": "deadline", "type": "uint256" }
                 ],
-                "name": "swapExactTokensForETH",
-                "outputs": [{ "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }],
+                "name": "swapExactTokensForETHSupportingFeeOnTransferTokens",
+                "outputs": [],
                 "stateMutability": "nonpayable",
                 "type": "function"
             },
@@ -212,7 +212,11 @@
             errorProcessing: "处理钱包时出错 ",
             errorMessage: ": ",
             allProcessed: "所有钱包处理完成",
-            buttonProcessing: "处理中..."
+            buttonProcessing: "处理中...",
+            insufficientBalance: "GM 余额不足",
+            insufficientGas: "GT 余额不足以支付 Gas 费用",
+            slippageTooLow: "滑点过低，交易失败",
+            userDenied: "用户拒绝了交易"
         };
 
         function getMessage(key) {
@@ -269,9 +273,9 @@
             const max = parseFloat(document.getElementById("maxAmount").value);
             if (isNaN(min) || isNaN(max) || min < 0 || max < min) {
                 log("警告: 无效金额区间，使用默认 100-1000 GM");
-                return Math.floor(Math.random() * (1000 - 100) + 100);
+                return (Math.random() * (1000 - 100) + 100).toFixed(4);
             }
-            return Math.floor(Math.random() * (max - min) + min);
+            return (Math.random() * (max - min) + min).toFixed(4);
         }
 
         async function waitForTransaction(txHash) {
@@ -370,15 +374,29 @@
                 }
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
-                const gasLimit = 400000;
+                const gasLimit = 3000000;
                 const GMAmountWei = web3Instance.utils.toWei(GMAmount.toString(), "ether");
                 const path = [GM_ADDRESS, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, GM_ADDRESS);
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
                 if (web3Instance.utils.toBN(tokenBalance).lt(web3Instance.utils.toBN(GMAmountWei))) {
-                    log(`GateSwap: GM 余额不足 ${wallet.address}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM`);
-                    document.getElementById("status").textContent += `GateSwap: GM 余额不足: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM\n`;
+                    log(`GateSwap: ${getMessage("insufficientBalance")} ${wallet.address}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM`);
+                    document.getElementById("status").textContent += `GateSwap: ${getMessage("insufficientBalance")}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM\n`;
+                    return false;
+                }
+                const gtBalance = await web3Instance.eth.getBalance(wallet.address);
+                const estimatedGas = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
+                    GMAmountWei,
+                    0,
+                    path,
+                    wallet.address,
+                    deadline
+                ).estimateGas({ from: wallet.address });
+                const gasCost = web3Instance.utils.toBN(gasPrice).mul(web3Instance.utils.toBN(estimatedGas));
+                if (web3Instance.utils.toBN(gtBalance).lt(gasCost)) {
+                    log(`GateSwap: ${getMessage("insufficientGas")} ${wallet.address}: ${web3Instance.utils.fromWei(gtBalance, "ether")} GT`);
+                    document.getElementById("status").textContent += `GateSwap: ${getMessage("insufficientGas")}: ${web3Instance.utils.fromWei(gtBalance, "ether")} GT\n`;
                     return false;
                 }
                 let attempts = 0;
@@ -391,9 +409,15 @@
                         const ethAmountWei = web3Instance.utils.toWei(ethAmount, "ether");
                         const slippagePercent = parseFloat(document.getElementById("slippage").value) / 100;
                         const ethAmountMin = web3Instance.utils.toBN(ethAmountWei).mul(web3Instance.utils.toBN(Math.floor((1 - slippagePercent) * 1000))).div(web3Instance.utils.toBN(1000));
-                        const tx = await routerContract.methods.swapExactTokensForETH(GMAmountWei, ethAmountMin, path, wallet.address, deadline).send({
+                        const tx = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
+                            GMAmountWei,
+                            ethAmountMin,
+                            path,
+                            wallet.address,
+                            deadline
+                        ).send({
                             from: wallet.address,
-                            gas: gasLimit,
+                            gas: Math.min(estimatedGas * 2, gasLimit),
                             gasPrice,
                             nonce
                         });
@@ -404,7 +428,11 @@
                         return true;
                     } catch (error) {
                         attempts++;
-                        log(`GateSwap 卖出失败 (尝试 ${attempts}/${maxAttempts}): ${error.message}`);
+                        if (error.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
+                            log(`GateSwap: ${getMessage("slippageTooLow")} ${wallet.address}: ${error.message}`);
+                            document.getElementById("status").textContent += `GateSwap: ${getMessage("slippageTooLow")}: ${error.message}\n`;
+                            return false;
+                        }
                         if (error.message.includes("replacement transaction underpriced") || error.message.includes("nonce too low")) {
                             nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
                         }
@@ -498,8 +526,8 @@
                 await sellGateSwap(wallet, GMAmount);
                 await checkBalances();
                 currentWalletIndex = (currentWalletIndex + 1) % wallets.length;
-            }, 10000);
-            log(`自动卖出启动: 每 10 秒卖出 GM，金额区间 ${minAmount}-${maxAmount} GM`);
+            }, 5000); // 每5秒卖出一次
+            log(`自动卖出启动: 每 5 秒卖出 GM，金额区间 ${minAmount}-${maxAmount} GM`);
             status.textContent += `自动卖出 GM 启动\n`;
             startButton.disabled = false;
             startButton.textContent = "启动机器人";
