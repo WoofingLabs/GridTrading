@@ -116,8 +116,7 @@
         <div class="settings">
             <label>RPC URL: <input type="text" id="rpcUrl" value="https://gatelayer-mainnet.gatenode.cc"></label>
             <label>Chain ID: <input type="text" id="chainId" value="10088" readonly></label>
-            <label>Gas Price (Gwei): <input type="number" id="gasPrice" value="0.5" step="0.1" min="0"></label>
-            <label>Slippage (%): <input type="number" id="slippage" value="5" step="0.1" min="0"></label>
+            <label>Gas Price (Gwei): <input type="number" id="gasPrice" value="0.2" step="0.1" min="0"></label>
             <label>Min Sell (GM): <input type="number" id="minAmount" value="100" step="1" min="0"></label>
             <label>Max Sell (GM): <input type="number" id="maxAmount" value="1000" step="1" min="0"></label>
             <label>Private Keys (one per line, start with 0x): <textarea id="privateKeys" placeholder="0xkey1 (66 chars)\n0xkey2 (66 chars)"></textarea>
@@ -219,6 +218,7 @@
         let wallets = [];
         let currentWalletIndex = 0;
         let approvedWallets = new Set();
+        let isProcessing = false; // 控制交易顺序执行
 
         function log(message) {
             const logDiv = document.getElementById("log");
@@ -362,6 +362,11 @@
         }
 
         async function sellGateSwap(wallet, GMAmount) {
+            if (isProcessing) {
+                log(`GateSwap: 正在处理交易，跳过 ${wallet.address}`);
+                return false;
+            }
+            isProcessing = true;
             try {
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
                 if (!approvedWallets.has(wallet.address)) {
@@ -374,13 +379,13 @@
                 }
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPrice = web3Instance.utils.toWei(document.getElementById("gasPrice").value, "gwei");
-                const gasLimit = 3000000;
+                const gasLimit = 10000000;
                 const GMAmountWei = web3Instance.utils.toWei(GMAmount.toString(), "ether");
                 const path = [GM_ADDRESS, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, GM_ADDRESS);
 
-                // 检查GM余额
+                // 检查 GM 余额
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
                 if (web3Instance.utils.toBN(tokenBalance).lt(web3Instance.utils.toBN(GMAmountWei))) {
                     log(`GateSwap: ${getMessage("insufficientBalance")} ${wallet.address}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM`);
@@ -388,7 +393,7 @@
                     return false;
                 }
 
-                // 检查GT余额（用于Gas费用）
+                // 检查 GT 余额（用于 Gas 费用）
                 const gtBalance = await web3Instance.eth.getBalance(wallet.address);
                 const estimatedGas = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
                     GMAmountWei,
@@ -410,9 +415,10 @@
                 let nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
                 while (attempts < maxAttempts) {
                     try {
+                        log(`GateSwap: 尝试卖出 ${GMAmount} GM，钱包 ${wallet.address}，Nonce ${nonce}`);
                         const tx = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
                             GMAmountWei,
-                            0, // 直接卖出，忽略滑点检查
+                            0,
                             path,
                             wallet.address,
                             deadline
@@ -431,7 +437,7 @@
                         attempts++;
                         if (error.message.includes("replacement transaction underpriced") || error.message.includes("nonce too low")) {
                             nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
-                            log(`GateSwap: ${getMessage("nonceError")} ${wallet.address}, 重试 ${attempts}/${maxAttempts}`);
+                            log(`GateSwap: ${getMessage("nonceError")} ${wallet.address}, 重试 ${attempts}/${maxAttempts}, 新 Nonce ${nonce}`);
                         } else if (error.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
                             log(`GateSwap: ${getMessage("slippageTooLow")} ${wallet.address}: ${error.message}`);
                             document.getElementById("status").textContent += `GateSwap: ${getMessage("slippageTooLow")}: ${error.message}\n`;
@@ -446,13 +452,15 @@
                             document.getElementById("status").textContent += `GateSwap 卖出失败: 超过最大重试次数\n`;
                             return false;
                         }
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        await new Promise(resolve => setTimeout(resolve, 2000));
                     }
                 }
             } catch (error) {
                 log(`GateSwap 错误: ${wallet.address}: ${error.message}`);
                 document.getElementById("status").textContent += `GateSwap 错误: ${error.message}\n`;
                 return false;
+            } finally {
+                isProcessing = false;
             }
         }
 
@@ -524,7 +532,7 @@
             log(`加载 ${wallets.length} 个有效钱包`);
             status.textContent += `加载 ${wallets.length} 个有效钱包\n`;
             autoSellInterval = setInterval(async () => {
-                if (!botRunning || !web3Instance) return;
+                if (!botRunning || !web3Instance || isProcessing) return;
                 const wallet = wallets[currentWalletIndex];
                 const GMAmount = getRandomGMAmount();
                 log(getMessage("sellingToken") + wallet.address + ` (索引 ${currentWalletIndex + 1}/${wallets.length}, ${GMAmount} GM)`);
@@ -547,6 +555,7 @@
                 autoSellInterval = null;
             }
             botRunning = false;
+            isProcessing = false;
             log("机器人已停止");
             document.getElementById("status").textContent = "状态: 机器人已停止\n";
             stopButton.disabled = false;
