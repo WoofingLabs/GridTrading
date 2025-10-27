@@ -217,6 +217,7 @@
         let wallets = [];
         let currentWalletIndex = 0;
         let approvedWallets = new Set();
+        let intervalId = null;
 
         function log(message) {
             const logDiv = document.getElementById("log");
@@ -277,7 +278,7 @@
                     if (receipt.status) return receipt;
                     throw new Error(`交易 ${txHash} 失败`);
                 }
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise(resolve => setTimeout(resolve, 3000)); // 3秒重试间隔
                 attempts++;
             }
             throw new Error(`交易 ${txHash} 未在 ${maxAttempts} 次尝试后确认`);
@@ -289,7 +290,7 @@
                 return true;
             }
             const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, GM_ADDRESS);
-            const gasPrice = await web3Instance.eth.getGasPrice();
+            const gasPrice = web3Instance.utils.toWei("0.2", "gwei"); // 默认 0.2 Gwei
             try {
                 const allowance = await tokenContract.methods.allowance(wallet.address, GATE_ROUTER_ADDRESS).call();
                 if (web3Instance.utils.toBN(allowance).gte(web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).div(web3Instance.utils.toBN(2)))) {
@@ -301,7 +302,7 @@
                 const estimatedGas = await tokenContract.methods.approve(GATE_ROUTER_ADDRESS, web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).sub(web3Instance.utils.toBN(1))).estimateGas({ from: wallet.address });
                 const tx = await tokenContract.methods.approve(GATE_ROUTER_ADDRESS, web3Instance.utils.toBN(2).pow(web3Instance.utils.toBN(256)).sub(web3Instance.utils.toBN(1))).send({
                     from: wallet.address,
-                    gas: Math.min(estimatedGas * 2, 100000),
+                    gas: Math.min(estimatedGas * 2, 10000000),
                     gasPrice
                 });
                 await waitForTransaction(tx.transactionHash);
@@ -371,8 +372,8 @@
                     }
                 }
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
-                const gasPriceInput = parseFloat(document.getElementById("gasPrice").value);
-                const gasPrice = isNaN(gasPriceInput) || gasPriceInput <= 0 ? await web3Instance.eth.getGasPrice() : web3Instance.utils.toWei(gasPriceInput.toString(), "gwei");
+                let gasPriceInput = parseFloat(document.getElementById("gasPrice").value);
+                let gasPrice = isNaN(gasPriceInput) || gasPriceInput <= 0 ? await web3Instance.eth.getGasPrice() : web3Instance.utils.toWei(gasPriceInput.toString(), "gwei");
                 const gasLimit = 10000000;
                 const GMAmountWei = web3Instance.utils.toWei(GMAmount.toString(), "ether");
                 const path = [GM_ADDRESS, WGT_ADDRESS];
@@ -403,13 +404,13 @@
                     return false;
                 }
 
-                // 直接卖出
+                // 卖出
                 let attempts = 0;
                 const maxAttempts = 5;
                 while (attempts < maxAttempts) {
                     const nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
                     try {
-                        log(`GateSwap: 尝试卖出 ${GMAmount} GM，钱包 ${wallet.address}，Nonce ${nonce}`);
+                        log(`GateSwap: 尝试卖出 ${GMAmount} GM，钱包 ${wallet.address}，Nonce ${nonce}，Gas Price ${web3Instance.utils.fromWei(gasPrice, "gwei")} Gwei`);
                         const tx = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
                             GMAmountWei,
                             0,
@@ -431,6 +432,12 @@
                         attempts++;
                         if (error.message.includes("replacement transaction underpriced") || error.message.includes("nonce too low")) {
                             log(`GateSwap: ${getMessage("nonceError")} ${wallet.address}, 重试 ${attempts}/${maxAttempts}, 新 Nonce ${nonce + 1}`);
+                            // 提高 Gas Price 重试
+                            if (attempts < maxAttempts) {
+                                gasPriceInput += 0.1;
+                                gasPrice = web3Instance.utils.toWei(gasPriceInput.toString(), "gwei");
+                                log(`提高 Gas Price 至 ${web3Instance.utils.fromWei(gasPrice, "gwei")} Gwei`);
+                            }
                         } else if (error.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
                             log(`GateSwap: ${getMessage("slippageTooLow")} ${wallet.address}: ${error.message}`);
                             document.getElementById("status").textContent += `GateSwap: ${getMessage("slippageTooLow")}: ${error.message}\n`;
@@ -445,7 +452,7 @@
                             document.getElementById("status").textContent += `GateSwap 卖出失败: 超过最大重试次数\n`;
                             return false;
                         }
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        await new Promise(resolve => setTimeout(resolve, 3000));
                     }
                 }
             } catch (error) {
@@ -463,9 +470,6 @@
             await sellGateSwap(wallet, GMAmount);
             await checkBalances();
             currentWalletIndex = (currentWalletIndex + 1) % wallets.length;
-            if (botRunning) {
-                setTimeout(processNextWallet, 0); // 立即处理下一个钱包
-            }
         }
 
         async function startBot() {
@@ -535,9 +539,10 @@
             currentWalletIndex = 0;
             log(`加载 ${wallets.length} 个有效钱包`);
             status.textContent += `加载 ${wallets.length} 个有效钱包\n`;
-            log(`自动卖出启动: 每次交易确认后立即处理下一笔，金额区间 ${minAmount}-${maxAmount} GM`);
+            log(`自动卖出启动: 每 5 秒处理一次，金额区间 ${minAmount}-${maxAmount} GM`);
             status.textContent += `自动卖出 GM 启动\n`;
-            processNextWallet(); // 启动递归处理
+            processNextWallet(); // 首次调用
+            intervalId = setInterval(processNextWallet, 5000); // 每 5 秒执行一次
             startButton.disabled = false;
             startButton.textContent = "启动机器人";
         }
@@ -547,6 +552,10 @@
             stopButton.disabled = true;
             stopButton.textContent = getMessage("buttonProcessing");
             botRunning = false;
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
             log("机器人已停止");
             document.getElementById("status").textContent = "状态: 机器人已停止\n";
             stopButton.disabled = false;
