@@ -135,7 +135,6 @@
         const GATE_ROUTER_ADDRESS = "0x12814690f59a9ce8ba87dc8cf0692442baa9c097";
         const WGT_ADDRESS = "0x6803b8e93b13941f6b73b82e324b80251b3de338";
         const GM_ADDRESS = "0xfb7a49bd483de0f2ed479f82a3f7f7f53e9e4057";
-        const GATE_PAIR = "0x4426c73ec012f8F70eb6C4B1e4B653b858604044";
 
         const GATE_ROUTER_ABI = [
             {
@@ -149,16 +148,6 @@
                 "name": "swapExactTokensForETHSupportingFeeOnTransferTokens",
                 "outputs": [],
                 "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    { "internalType": "uint256", "name": "amountIn", "type": "uint256" },
-                    { "internalType": "address[]", "name": "path", "type": "address[]" }
-                ],
-                "name": "getAmountsOut",
-                "outputs": [{ "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }],
-                "stateMutability": "view",
                 "type": "function"
             }
         ];
@@ -193,29 +182,6 @@
             }
         ];
 
-        const PAIR_ABI = [
-            {
-                "constant": true,
-                "inputs": [],
-                "name": "getReserves",
-                "outputs": [
-                    { "internalType": "uint112", "name": "_reserve0", "type": "uint112" },
-                    { "internalType": "uint112", "name": "_reserve1", "type": "uint112" },
-                    { "internalType": "uint32", "name": "_blockTimestampLast", "type": "uint32" }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "constant": true,
-                "inputs": [],
-                "name": "token0",
-                "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
-                "stateMutability": "view",
-                "type": "function"
-            }
-        ];
-
         const messages = {
             statusReady: "状态: 就绪",
             testingRPC: "正在测试 RPC 连接...",
@@ -240,7 +206,7 @@
             insufficientBalance: "GM 余额不足",
             insufficientGas: "GT 余额不足以支付 Gas 费用",
             slippageTooLow: "滑点过低，交易失败",
-            liquidityError: "流动性不足或交易池错误"
+            nonceError: "Nonce 冲突或交易被替换"
         };
 
         function getMessage(key) {
@@ -395,26 +361,6 @@
             startButton.textContent = "检查余额";
         }
 
-        async function checkLiquidity(GMAmountWei) {
-            try {
-                const pairContract = new web3Instance.eth.Contract(PAIR_ABI, GATE_PAIR);
-                const reserves = await pairContract.methods.getReserves().call();
-                const token0 = await pairContract.methods.token0().call();
-                const isWGTFirst = token0.toLowerCase() === WGT_ADDRESS.toLowerCase();
-                const gtReserve = isWGTFirst ? reserves._reserve0 : reserves._reserve1;
-                const gmReserve = isWGTFirst ? reserves._reserve1 : reserves._reserve0;
-                const minGTOutput = web3Instance.utils.toBN(GMAmountWei).mul(web3Instance.utils.toBN(gtReserve)).div(web3Instance.utils.toBN(gmReserve));
-                if (web3Instance.utils.toBN(gtReserve).lt(minGTOutput)) {
-                    log(getMessage("liquidityError") + `: GT 储备量 ${web3Instance.utils.fromWei(gtReserve, "ether")} 不足`);
-                    return false;
-                }
-                return true;
-            } catch (error) {
-                log(getMessage("liquidityError") + `: ${error.message}`);
-                return false;
-            }
-        }
-
         async function sellGateSwap(wallet, GMAmount) {
             try {
                 web3Instance.eth.accounts.wallet.add(wallet.privateKey);
@@ -433,12 +379,16 @@
                 const path = [GM_ADDRESS, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
                 const tokenContract = new web3Instance.eth.Contract(ERC20_ABI, GM_ADDRESS);
+
+                // 检查GM余额
                 const tokenBalance = await tokenContract.methods.balanceOf(wallet.address).call();
                 if (web3Instance.utils.toBN(tokenBalance).lt(web3Instance.utils.toBN(GMAmountWei))) {
                     log(`GateSwap: ${getMessage("insufficientBalance")} ${wallet.address}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM`);
                     document.getElementById("status").textContent += `GateSwap: ${getMessage("insufficientBalance")}: ${web3Instance.utils.fromWei(tokenBalance, "ether")} GM\n`;
                     return false;
                 }
+
+                // 检查GT余额（用于Gas费用）
                 const gtBalance = await web3Instance.eth.getBalance(wallet.address);
                 const estimatedGas = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
                     GMAmountWei,
@@ -453,24 +403,16 @@
                     document.getElementById("status").textContent += `GateSwap: ${getMessage("insufficientGas")}: ${web3Instance.utils.fromWei(gtBalance, "ether")} GT\n`;
                     return false;
                 }
-                if (!(await checkLiquidity(GMAmountWei))) {
-                    log(`GateSwap: ${getMessage("liquidityError")} ${wallet.address}`);
-                    document.getElementById("status").textContent += `GateSwap: ${getMessage("liquidityError")}\n`;
-                    return false;
-                }
+
+                // 直接卖出
                 let attempts = 0;
-                const maxAttempts = 3;
+                const maxAttempts = 5;
                 let nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
                 while (attempts < maxAttempts) {
                     try {
-                        const amounts = await routerContract.methods.getAmountsOut(GMAmountWei, path).call();
-                        const ethAmount = web3Instance.utils.fromWei(amounts[1], "ether");
-                        const ethAmountWei = web3Instance.utils.toWei(ethAmount, "ether");
-                        const slippagePercent = parseFloat(document.getElementById("slippage").value) / 100;
-                        const ethAmountMin = web3Instance.utils.toBN(ethAmountWei).mul(web3Instance.utils.toBN(Math.floor((1 - slippagePercent) * 1000))).div(web3Instance.utils.toBN(1000));
                         const tx = await routerContract.methods.swapExactTokensForETHSupportingFeeOnTransferTokens(
                             GMAmountWei,
-                            ethAmountMin,
+                            0, // 直接卖出，忽略滑点检查
                             path,
                             wallet.address,
                             deadline
@@ -483,24 +425,28 @@
                         await waitForTransaction(tx.transactionHash);
                         const txLink = `https://www.gatescan.org/gatelayer/tx/${tx.transactionHash}`;
                         log(getMessage("tradeSuccess") + tx.transactionHash);
-                        document.getElementById("status").textContent += `GateSwap 卖出: ${GMAmount} GM -> ~${parseFloat(ethAmount).toFixed(6)} GT, TX: ${txLink}\n`;
+                        document.getElementById("status").textContent += `GateSwap 卖出: ${GMAmount} GM, TX: ${txLink}\n`;
                         return true;
                     } catch (error) {
                         attempts++;
-                        if (error.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
+                        if (error.message.includes("replacement transaction underpriced") || error.message.includes("nonce too low")) {
+                            nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
+                            log(`GateSwap: ${getMessage("nonceError")} ${wallet.address}, 重试 ${attempts}/${maxAttempts}`);
+                        } else if (error.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
                             log(`GateSwap: ${getMessage("slippageTooLow")} ${wallet.address}: ${error.message}`);
                             document.getElementById("status").textContent += `GateSwap: ${getMessage("slippageTooLow")}: ${error.message}\n`;
                             return false;
-                        }
-                        if (error.message.includes("replacement transaction underpriced") || error.message.includes("nonce too low")) {
-                            nonce = await web3Instance.eth.getTransactionCount(wallet.address, "pending");
-                        }
-                        if (attempts === maxAttempts) {
+                        } else {
                             log(`GateSwap 卖出失败: ${wallet.address}: ${error.message}`);
                             document.getElementById("status").textContent += `GateSwap 卖出失败: ${error.message}\n`;
                             return false;
                         }
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        if (attempts === maxAttempts) {
+                            log(`GateSwap 卖出失败: ${wallet.address}: 超过最大重试次数`);
+                            document.getElementById("status").textContent += `GateSwap 卖出失败: 超过最大重试次数\n`;
+                            return false;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
             } catch (error) {
