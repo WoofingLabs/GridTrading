@@ -214,7 +214,6 @@
 
         let web3Instance = null;
         let botRunning = false;
-        let autoSellInterval = null;
         let wallets = [];
         let currentWalletIndex = 0;
         let approvedWallets = new Set();
@@ -374,7 +373,7 @@
                 const routerContract = new web3Instance.eth.Contract(GATE_ROUTER_ABI, GATE_ROUTER_ADDRESS);
                 const gasPriceInput = parseFloat(document.getElementById("gasPrice").value);
                 const gasPrice = isNaN(gasPriceInput) || gasPriceInput <= 0 ? await web3Instance.eth.getGasPrice() : web3Instance.utils.toWei(gasPriceInput.toString(), "gwei");
-                const gasLimit = 20000000;
+                const gasLimit = 10000000;
                 const GMAmountWei = web3Instance.utils.toWei(GMAmount.toString(), "ether");
                 const path = [GM_ADDRESS, WGT_ADDRESS];
                 const deadline = Math.floor(Date.now() / 1000) + 60 * 20;
@@ -456,6 +455,19 @@
             }
         }
 
+        async function processNextWallet() {
+            if (!botRunning || !web3Instance) return;
+            const wallet = wallets[currentWalletIndex];
+            const GMAmount = getRandomGMAmount();
+            log(getMessage("sellingToken") + wallet.address + ` (索引 ${currentWalletIndex + 1}/${wallets.length}, ${GMAmount} GM)`);
+            await sellGateSwap(wallet, GMAmount);
+            await checkBalances();
+            currentWalletIndex = (currentWalletIndex + 1) % wallets.length;
+            if (botRunning) {
+                setTimeout(processNextWallet, 0); // 立即处理下一个钱包
+            }
+        }
+
         async function startBot() {
             const startButton = document.getElementById("startButton");
             startButton.disabled = true;
@@ -523,17 +535,9 @@
             currentWalletIndex = 0;
             log(`加载 ${wallets.length} 个有效钱包`);
             status.textContent += `加载 ${wallets.length} 个有效钱包\n`;
-            autoSellInterval = setInterval(async () => {
-                if (!botRunning || !web3Instance) return;
-                const wallet = wallets[currentWalletIndex];
-                const GMAmount = getRandomGMAmount();
-                log(getMessage("sellingToken") + wallet.address + ` (索引 ${currentWalletIndex + 1}/${wallets.length}, ${GMAmount} GM)`);
-                await sellGateSwap(wallet, GMAmount);
-                await checkBalances();
-                currentWalletIndex = (currentWalletIndex + 1) % wallets.length;
-            }, 5000);
-            log(`自动卖出启动: 每 5 秒卖出 GM，金额区间 ${minAmount}-${maxAmount} GM`);
+            log(`自动卖出启动: 每次交易确认后立即处理下一笔，金额区间 ${minAmount}-${maxAmount} GM`);
             status.textContent += `自动卖出 GM 启动\n`;
+            processNextWallet(); // 启动递归处理
             startButton.disabled = false;
             startButton.textContent = "启动机器人";
         }
@@ -542,10 +546,6 @@
             const stopButton = document.getElementById("stopButton");
             stopButton.disabled = true;
             stopButton.textContent = getMessage("buttonProcessing");
-            if (autoSellInterval) {
-                clearInterval(autoSellInterval);
-                autoSellInterval = null;
-            }
             botRunning = false;
             log("机器人已停止");
             document.getElementById("status").textContent = "状态: 机器人已停止\n";
